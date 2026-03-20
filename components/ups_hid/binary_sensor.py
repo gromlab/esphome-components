@@ -39,11 +39,24 @@ BINARY_SENSOR_TYPES = {
 }
 
 
-CONFIG_SCHEMA = binary_sensor.binary_sensor_schema(UpsHidBinarySensor).extend(
-    {
-        cv.GenerateID(CONF_UPS_HID_ID): cv.use_id(UpsHidComponent),
-        cv.Required(CONF_TYPE): cv.one_of(*BINARY_SENSOR_TYPES, lower=True),
-    }
+def _validate_binary_sensor_config(config):
+    """Apply binary sensor type defaults to config before schema validation."""
+    sensor_type = config.get(CONF_TYPE)
+    if sensor_type in BINARY_SENSOR_TYPES:
+        sensor_config = BINARY_SENSOR_TYPES[sensor_type]
+        if "device_class" not in config and "device_class" in sensor_config:
+            config["device_class"] = sensor_config["device_class"]
+    return config
+
+
+CONFIG_SCHEMA = cv.All(
+    binary_sensor.binary_sensor_schema(UpsHidBinarySensor).extend(
+        {
+            cv.GenerateID(CONF_UPS_HID_ID): cv.use_id(UpsHidComponent),
+            cv.Required(CONF_TYPE): cv.one_of(*BINARY_SENSOR_TYPES, lower=True),
+        }
+    ),
+    _validate_binary_sensor_config,
 )
 
 
@@ -55,11 +68,3 @@ async def to_code(config):
     sensor_type = config[CONF_TYPE]
     cg.add(var.set_sensor_type(sensor_type))
     cg.add(parent.register_binary_sensor(var, sensor_type))
-
-    # Apply sensor type specific configuration
-    if sensor_type in BINARY_SENSOR_TYPES:
-        sensor_config = BINARY_SENSOR_TYPES[sensor_type]
-
-        # Override config with sensor type defaults if not specified
-        if "device_class" not in config and "device_class" in sensor_config:
-            cg.add(var.set_device_class(sensor_config["device_class"]))

@@ -85,4 +85,87 @@ SENSOR_TYPES = {
         "accuracy_decimals": 0,
     },
     "ups_delay_shutdown": {
-        "unit": UNIT
+        "unit": UNIT_SECOND,
+        "device_class": DEVICE_CLASS_DURATION,
+        "accuracy_decimals": 0,
+    },
+    "ups_delay_start": {
+        "unit": UNIT_SECOND,
+        "device_class": DEVICE_CLASS_DURATION,
+        "accuracy_decimals": 0,
+    },
+    "ups_delay_reboot": {
+        "unit": UNIT_SECOND,
+        "device_class": DEVICE_CLASS_DURATION,
+        "accuracy_decimals": 0,
+    },
+    # Additional missing sensor types from NUT analysis
+    "battery_charge_low": {
+        "unit": UNIT_PERCENT,
+        "device_class": DEVICE_CLASS_BATTERY,
+        "accuracy_decimals": 0,
+    },
+    "battery_charge_warning": {
+        "unit": UNIT_PERCENT,
+        "device_class": DEVICE_CLASS_BATTERY,
+        "accuracy_decimals": 0,
+    },
+    "battery_runtime_low": {
+        "unit": UNIT_MINUTE,
+        "device_class": DEVICE_CLASS_DURATION,
+        "accuracy_decimals": 0,
+    },
+    "ups_timer_reboot": {
+        "unit": UNIT_SECOND,
+        "device_class": DEVICE_CLASS_DURATION,
+        "accuracy_decimals": 0,
+    },
+    "ups_timer_shutdown": {
+        "unit": UNIT_SECOND,
+        "device_class": DEVICE_CLASS_DURATION,
+        "accuracy_decimals": 0,
+    },
+    "ups_timer_start": {
+        "unit": UNIT_SECOND,
+        "device_class": DEVICE_CLASS_DURATION,
+        "accuracy_decimals": 0,
+    },
+}
+
+
+def _validate_sensor_config(config):
+    """Apply sensor type defaults to config before schema validation."""
+    sensor_type = config.get(CONF_TYPE)
+    if sensor_type in SENSOR_TYPES:
+        sensor_config = SENSOR_TYPES[sensor_type]
+        if "unit_of_measurement" not in config and "unit" in sensor_config:
+            config["unit_of_measurement"] = sensor_config["unit"]
+        if "device_class" not in config and "device_class" in sensor_config:
+            config["device_class"] = sensor_config["device_class"]
+        if "accuracy_decimals" not in config and "accuracy_decimals" in sensor_config:
+            config["accuracy_decimals"] = sensor_config["accuracy_decimals"]
+    return config
+
+
+CONFIG_SCHEMA = cv.All(
+    sensor.sensor_schema(
+        UpsHidSensor,
+        accuracy_decimals=1,
+    ).extend(
+        {
+            cv.GenerateID(CONF_UPS_HID_ID): cv.use_id(UpsHidComponent),
+            cv.Required(CONF_TYPE): cv.one_of(*SENSOR_TYPES, lower=True),
+        }
+    ),
+    _validate_sensor_config,
+)
+
+
+async def to_code(config):
+    parent = await cg.get_variable(config[CONF_UPS_HID_ID])
+    var = await sensor.new_sensor(config)
+    await cg.register_component(var, config)
+
+    sensor_type = config[CONF_TYPE]
+    cg.add(var.set_sensor_type(sensor_type))
+    cg.add(parent.register_sensor(var, sensor_type))
